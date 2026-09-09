@@ -16761,3 +16761,69 @@ a parallel owner.
 
 **Stage.** Logged and specified only. No product behavior, source runtime, test
 result, deployment, or acceptance claim changed in this pass.
+
+## rikiworld.com/xpedit flat-arena stall — blanket no-store on a 24.2 MB payload — 2026-09-09 — DIAGNOSED, NOT FIXED
+
+**Operational frame.** The user reported that `rikiworld.com/xpedit` "keeps stalling"
+and asked for a read-only diagnosis before any MVP publish. The required outcome is
+a reachable skin-authoring surface whose runtime preview loads. The observed mismatch
+is that the preview never becomes ready. No fix was attempted, applied, deployed, or
+claimed in this pass.
+
+**Serving-owner correction.** The live site is NOT served by `asciicker-pipeline-v3`.
+It is served from `/Users/r/Downloads/asciicker-pipeline-v2`, branch
+`deployed-prod-baseline` at `4b33ddf`, remote `asciicker-xpedit.git`, fronted by a
+Cloudflare Worker to Cloud Run. The `deploy/nginx.conf`, `deploy/Caddyfile`, and
+`deploy/systemd/` templates present in both repos are NOT the running configuration;
+`deploy/cloudflare-worker/xpedit-router.js` plus
+`.github/workflows/deploy-cloudrun.yml` are. An earlier framing in this session
+treated the live site as an unauditable black box. That was wrong: the serving
+checkout and its full history were present on disk, and the correction was made by
+the user, not by the agent. All file:line citations below are in the v2 serving repo.
+
+**Root cause.** `src/pipeline_v2/app.py:343-345` registers
+`/termpp-web-flat/<path:filename>` with `no_cache=True`. That flag routes through
+`_serve_runtime_asset` (`app.py:113-119`) into `_no_cache` (`app.py:70-74`), which
+sets `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`. The flag is
+applied blanket to every file under that prefix, including
+`runtime/termpp-skin-lab-static/termpp-web-flat/index.data` at 24.2 MB
+(`index.wasm` 0.4 MB, `index.js` 0.1 MB). `no-store` also forces
+`cf-cache-status: DYNAMIC`, so Cloudflare cannot absorb the payload either, and the
+full 24.2 MB is re-fetched from origin on every preview open or reload.
+
+**Amplifying conditions.** Origin capacity is one instance:
+`.github/workflows/deploy-cloudrun.yml:96` sets `--max-instances=1` and `:98` sets
+`--concurrency=80`, while `Dockerfile:35-38` runs gunicorn with `--workers 1` and
+`--threads 4`. The front end waits up to 180 s for readiness
+(`web/workbench.js:58`, `WEBBUILD_READY_TIMEOUT_MS = 180000`).
+
+**Evidence observed.** Live browser and curl probes recorded a 503 on `index.data`,
+and latency degradation from 1.7 s to 4.8 s at ten concurrent requests. The `/xpedit`
+document itself responds in roughly 0.25 s with no pending requests; only the
+flat-arena preview iframe hangs. The stalling surface is therefore the skin dock
+specifically, not the editor shell.
+
+**History.** `ddfabc6` (2026-02-24, "Add static skin test dock and flat arena
+preview") introduced the route. `c110dda` (2026-02-27, "chore: commit working tree —
+workbench, pipeline, docs, ui test framework, tooling") introduced `_no_cache` and
+stamped `no_cache=True` onto it. That commit changed 47 files with 7147 insertions,
+so the caching behavior now breaking production entered as an incidental line in a
+bulk checkpoint rather than as a reviewed deployment decision.
+
+**Ruled out.** Base-path 404s on `/sw.js` and `/manifest.json` are real defects but
+are not the staller: the service worker never registers, so it blocks nothing. Its
+absence removes the client-side caching that would otherwise have masked the payload
+re-download.
+
+**Falsifier.** A measured preview open in which `index.data` is served from browser
+or edge cache and the arena still fails to reach ready would falsify this cause and
+move suspicion to arena bootstrap or origin capacity alone.
+
+**Still open.** Whether `rikiworld.com/xpedit` should continue to be served from the
+v2 repo or be replaced by v3 is undecided and belongs to the user. A static-hosting
+feasibility audit for removing the Cloudflare Worker and Cloud Run origin entirely
+was requested in the same session and is tracked separately.
+
+**Stage.** Diagnosed from live observation plus serving-repo source and history.
+Not Implemented, not Connected, not Executed as a fix. No source, configuration,
+deployment, or runtime state was modified.
