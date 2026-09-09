@@ -16930,3 +16930,15 @@ in skin application.
 
 **Stage.** Executed and reproduced against the live deployment. Not fixed. No source,
 configuration, deployment, or runtime state was modified in this pass.
+
+## rikiworld.com/xpedit preview blockers - local fix and headed acceptance - 2026-09-09 - VERIFIED LOCALLY
+
+**Operational frame.** The completed Y9 layer inventory and normalization remain closed work. The user ordered the XPEdit menu deadlock, reload race, and cache waste fixed before FL-4162 or the RexPaint-first UI replacement. This entry records the bounded authoring and test-harness fix. It does not change the Y9 layer contract.
+
+**Fix.** The flat runtime now honors `autonewgame=1` by calling `StartGame()` after `_wasmReady`. The workbench performs one iframe navigation per test and no longer adds timestamp cache-bust tokens. Runtime HTML remains no-store. Content-versioned JavaScript, WASM, data, and bootstrap assets now use one-year immutable caching. `index.data` is served with gzip when accepted. The service worker and manifest resolve from the configured `/xpedit` scope. The idle template keeps its 126x80 authoring geometry and is projected to the frozen 126x72 legacy preview contract only while minting a preview token.
+
+**Headed acceptance.** A local headed Chromium run opened `/xpedit/workbench`, applied `player_native_idle_only`, and clicked `Test This Skin`. The runtime reached `Module.calledRun=true`, `_wasmReady=true`, `GameWorldReady()=1`, a visible canvas, a hidden login overlay, and `runtime_activation_status=activated`. The activation control was `Keyb(OEM_COMMA=108)`. The network receipt contained one runtime HTML request and one `index.data` request. The data request returned 200 with `Content-Encoding: gzip` and `Cache-Control: public, max-age=31536000, immutable`. The only unrelated HTTP failure was `/favicon.ico` 404. Existing sprite-loader diagnostics remained present and did not prevent activation.
+
+**Automated verification.** The focused Python route, base-path, legacy-preview, and workbench suite passed. The JavaScript runtime-contract and template-gating suites passed. The exact pre-deploy pytest selection from `.github/workflows/deploy-cloudrun.yml` passed locally. Syntax checks and the equality check between the source and packaged flat-map bootstraps passed.
+
+**Stage.** Verified locally. Production remains unverified until the exact commit is deployed and the public URL reproduces the same menu exit, activation receipt, single runtime load, and cache headers. The RexPaint-first UI replacement remains a separate local-only phase and must not replace the public endpoint before its headed acceptance proof.

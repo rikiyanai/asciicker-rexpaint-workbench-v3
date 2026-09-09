@@ -3,7 +3,10 @@ from __future__ import annotations
 import time
 import uuid
 import json
+import gzip
+import hashlib
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 
 from flask import Blueprint, Flask, Response, jsonify, redirect, request, send_from_directory, send_file
@@ -88,6 +91,53 @@ def _no_cache(resp):
     return resp
 
 
+_RUNTIME_IMMUTABLE_ASSETS = {
+    "index.data",
+    "index.js",
+    "index.wasm",
+    "flat_map_bootstrap.js",
+    "legacy_skin_preview_bootstrap.js",
+}
+
+
+@lru_cache(maxsize=32)
+def _file_sha256(path: str, size: int, mtime_ns: int) -> str:
+    del size, mtime_ns
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _asset_sha256(path: Path) -> str:
+    stat = path.stat()
+    return _file_sha256(str(path), stat.st_size, stat.st_mtime_ns)
+
+
+@lru_cache(maxsize=4)
+def _runtime_asset_version(runtime_dir: str, fingerprint: tuple[tuple[str, int, int], ...]) -> str:
+    root = Path(runtime_dir)
+    digest = hashlib.sha256()
+    for name, _size, _mtime_ns in fingerprint:
+        path = root / name
+        digest.update(name.encode("utf-8"))
+        digest.update(_asset_sha256(path).encode("ascii"))
+    return digest.hexdigest()[:16]
+
+
+def _current_runtime_asset_version(runtime_dir: Path) -> str:
+    fingerprint = []
+    for name in sorted(_RUNTIME_IMMUTABLE_ASSETS):
+        path = runtime_dir / name
+        if path.is_file():
+            stat = path.stat()
+            fingerprint.append((name, stat.st_size, stat.st_mtime_ns))
+    return _runtime_asset_version(str(runtime_dir), tuple(fingerprint))
+
+
+@lru_cache(maxsize=4)
+def _gzip_file(path: str, size: int, mtime_ns: int) -> bytes:
+    del size, mtime_ns
+    return gzip.compress(Path(path).read_bytes(), compresslevel=6, mtime=0)
+
+
 def _v(path: str) -> str:
     s = str(path)
     sep = "&" if "?" in s else "?"
@@ -100,10 +150,12 @@ def _serve_web_html(file_name: str):
     # Prefix root-relative asset paths with BASE_PATH
     html = html.replace('href="/styles.css"', f'href="{_v(BASE_PATH + "/styles.css")}"')
     html = html.replace('href="/rexpaint-editor/styles.css"', f'href="{_v(BASE_PATH + "/rexpaint-editor/styles.css")}"')
+    html = html.replace('href="/manifest.json"', f'href="{_v(BASE_PATH + "/manifest.json")}"')
     html = html.replace('src="/workbench-template-gating.js"', f'src="{_v(BASE_PATH + "/workbench-template-gating.js")}"')
     html = html.replace('src="/workbench.js"', f'src="{_v(BASE_PATH + "/workbench.js")}"')
     html = html.replace('src="/wizard.js"', f'src="{_v(BASE_PATH + "/wizard.js")}"')
     html = html.replace('src="/whole-sheet-init.js"', f'src="{_v(BASE_PATH + "/whole-sheet-init.js")}"')
+    html = html.replace('src="/persistence.mjs"', f'src="{_v(BASE_PATH + "/persistence.mjs")}"')
     # Relative path — no base-path prefix needed
     html = html.replace('src="./termpp_skin_lab.js"', f'src="{_v("./termpp_skin_lab.js")}"')
     # Prefix in-page navigation links
@@ -128,10 +180,59 @@ def _runtime_unavailable_response(runtime_dir: Path):
 def _serve_runtime_asset(runtime_dir: Path, file_name: str, *, no_cache: bool = False):
     if not runtime_dir.exists():
         return _runtime_unavailable_response(runtime_dir)
-    resp = send_from_directory(runtime_dir, file_name)
     if no_cache:
-        return _no_cache(resp)
+        return _no_cache(send_from_directory(runtime_dir, file_name))
+    asset_path = (runtime_dir / file_name).resolve()
+    if runtime_dir not in asset_path.parents or not asset_path.is_file():
+        return send_from_directory(runtime_dir, file_name)
+    requested_version = str(request.args.get("v") or "")
+    current_version = _current_runtime_asset_version(runtime_dir)
+    immutable = file_name in _RUNTIME_IMMUTABLE_ASSETS and requested_version == current_version
+    if file_name == "index.data" and "gzip" in str(request.headers.get("Accept-Encoding") or "").lower():
+        stat = asset_path.stat()
+        payload = _gzip_file(str(asset_path), stat.st_size, stat.st_mtime_ns)
+        resp = Response(payload, mimetype="application/octet-stream")
+        resp.headers["Content-Encoding"] = "gzip"
+        resp.headers["Vary"] = "Accept-Encoding"
+        resp.set_etag(_asset_sha256(asset_path))
+    else:
+        resp = send_from_directory(runtime_dir, file_name, conditional=True)
+    if immutable:
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        resp.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
     return resp
+
+
+def _serve_runtime_index(runtime_dir: Path):
+    index_path = runtime_dir / "index.html"
+    if not index_path.is_file():
+        return _runtime_unavailable_response(runtime_dir)
+    version = _current_runtime_asset_version(runtime_dir)
+    html = index_path.read_text(encoding="utf-8")
+    runtime_config = (
+        "<script>(function(){"
+        f"var v={json.dumps(version)};"
+        "var prior=Module.locateFile;"
+        "Module.locateFile=function(path,prefix){"
+        "var url=prior?prior(path,prefix):(prefix||'')+path;"
+        "return /(?:index\\.(?:data|wasm))$/.test(path)"
+        "?url+(url.indexOf('?')>=0?'&':'?')+'v='+encodeURIComponent(v):url;"
+        "};})();</script>"
+    )
+    html = html.replace(
+        '<script src="legacy_skin_preview_bootstrap.js"></script>',
+        f'<script src="legacy_skin_preview_bootstrap.js?v={version}"></script>',
+    )
+    html = html.replace(
+        '<script async src=index.js></script>',
+        f'{runtime_config}<script async src="index.js?v={version}"></script>',
+    )
+    html = html.replace(
+        '<script src="flat_map_bootstrap.js"></script>',
+        f'<script src="flat_map_bootstrap.js?v={version}"></script>',
+    )
+    return _no_cache(Response(html, mimetype="text/html"))
 
 
 def _runtime_preflight_payload() -> dict:
@@ -346,19 +447,23 @@ def create_app() -> Flask:
 
     @bp.route("/termpp-web")
     def termpp_web_index_alias():
-        return _serve_runtime_asset(STATIC_WEB_DIR, "index.html", no_cache=True)
+        return _serve_runtime_index(STATIC_WEB_DIR)
 
     @bp.route("/termpp-web/<path:filename>")
     def termpp_web_assets(filename: str):
-        return _serve_runtime_asset(STATIC_WEB_DIR, filename, no_cache=True)
+        if filename == "index.html":
+            return _serve_runtime_index(STATIC_WEB_DIR)
+        return _serve_runtime_asset(STATIC_WEB_DIR, filename)
 
     @bp.route("/termpp-web-flat")
     def termpp_web_flat_index_alias():
-        return _serve_runtime_asset(STATIC_FLAT_WEB_DIR, "index.html", no_cache=True)
+        return _serve_runtime_index(STATIC_FLAT_WEB_DIR)
 
     @bp.route("/termpp-web-flat/<path:filename>")
     def termpp_web_flat_assets(filename: str):
-        return _serve_runtime_asset(STATIC_FLAT_WEB_DIR, filename, no_cache=True)
+        if filename == "index.html":
+            return _serve_runtime_index(STATIC_FLAT_WEB_DIR)
+        return _serve_runtime_asset(STATIC_FLAT_WEB_DIR, filename)
 
     @bp.get("/api/workbench/runtime-preflight")
     def api_wb_runtime_preflight():

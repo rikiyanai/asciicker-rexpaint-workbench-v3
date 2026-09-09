@@ -83,6 +83,31 @@ def test_wolfie_preview_resolves_mounted_packaged_target(hosted_client):
     assert metadata["legacy_transparency_normalized_cells"] == 0
 
 
+def test_idle_template_session_is_projected_to_legacy_preview_geometry(client):
+    created = client.post(
+        "/api/workbench/create-blank-session",
+        json={"template_set_key": "player_native_idle_only", "action_key": "idle"},
+    )
+    assert created.status_code == 201
+    session = created.get_json()
+    assert (session["grid_cols"], session["grid_rows"]) == (126, 80)
+
+    minted = client.post(
+        "/api/workbench/legacy-preview-token",
+        json={"session_id": session["session_id"]},
+    )
+    assert minted.status_code == 201
+    metadata = minted.get_json()
+    assert (metadata["width"], metadata["height"], metadata["layers"]) == (126, 72, 3)
+    assert metadata["family"] == "player"
+
+    consumed = client.get(f"/api/workbench/legacy-preview-token/{metadata['token']}")
+    assert consumed.status_code == 200
+    preview = read_xp(base64.b64decode(consumed.get_json()["xp_b64"]))
+    assert (preview["width"], preview["height"], preview["layers"]) == (126, 72, 3)
+    assert "".join(chr(preview["cells"][0][index][0]) for index in range(3)) == "818"
+
+
 def test_legacy_preview_rejects_non_actor_topology(client):
     raw = (ROOT / "sprites/player-0000.xp").read_bytes()
     response = client.post(

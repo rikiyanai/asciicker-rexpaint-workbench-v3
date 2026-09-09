@@ -153,7 +153,6 @@
       loadRequestedAt: 0,
       expectedSrc: "",
       lastLoadedSrc: "",
-      pendingAutoStartToken: "",
       uploadedXpBytes: null,
       uploadedXpName: "",
       runtimePreflight: {
@@ -830,14 +829,17 @@
     const raw = String(state.webbuild.src || bp("/termpp-web-flat/index.html?solo=1&player=player"));
     try {
       const u = new URL(raw, window.location.origin);
-      if (forceFresh) u.searchParams.set("_wb", String(Date.now()));
+      // Preview tokens already make authored test documents unique. Runtime
+      // assets carry their own content version, so a timestamp here only
+      // defeats caching and lets repeated actions race full downloads.
+      u.searchParams.delete("_wb");
       if (previewToken) u.searchParams.set("skin_preview_token", String(previewToken));
       else u.searchParams.delete("skin_preview_token");
       return `${u.pathname}${u.search}`;
     } catch (_e) {
-      if (!forceFresh && !previewToken) return raw;
+      if (!previewToken) return raw;
       const sep = raw.includes("?") ? "&" : "?";
-      return `${raw}${sep}_wb=${Date.now()}${previewToken ? `&skin_preview_token=${encodeURIComponent(previewToken)}` : ""}`;
+      return `${raw}${sep}skin_preview_token=${encodeURIComponent(previewToken)}`;
     }
   }
 
@@ -990,10 +992,7 @@
     stopWebbuildReadyPoll();
     const nextSrc = webbuildFrameSrc(opts.force_fresh !== false, opts.preview_token || "");
     state.webbuild.expectedSrc = nextSrc;
-    try { frame.src = "about:blank"; } catch (_e) {}
-    setTimeout(() => {
-      try { frame.src = nextSrc; } catch (_e) {}
-    }, 10);
+    try { frame.src = nextSrc; } catch (_e) {}
     state.webbuild.readyPoll = setInterval(detectWebbuildReady, 500);
   }
 
@@ -1009,10 +1008,7 @@
     stopWebbuildReadyPoll();
     const nextSrc = webbuildFrameSrc(opts.force_fresh !== false, opts.preview_token || "");
     state.webbuild.expectedSrc = nextSrc;
-    try { frame.src = "about:blank"; } catch (_e) {}
-    setTimeout(() => {
-      try { frame.src = nextSrc; } catch (_e) {}
-    }, 10);
+    try { frame.src = nextSrc; } catch (_e) {}
     state.webbuild.readyPoll = setInterval(detectWebbuildReady, 500);
   }
 
@@ -1240,13 +1236,6 @@
       !hashesMatch
     ) {
       throw new Error("legacy preview install receipt does not match the minted payload");
-    }
-    const win = webbuildFrameWindow();
-    if (!scheduleDeferredWebbuildStart(win, {
-      expected_src: state.webbuild.expectedSrc,
-      player_name: "player",
-    })) {
-      throw new Error("legacy preview runtime could not schedule game start");
     }
     return waitForLegacyPreviewRuntimeActivation(tokenPayload.family);
   }
@@ -2406,7 +2395,7 @@
   }
 
   function authoringProjectionCount() {
-    return Math.max(1, Number(state.sourceProjs || 1));
+    return Math.max(1, Number(state.projs || 1));
   }
 
   function semanticFrameCount() {

@@ -4500,6 +4500,60 @@ def _normalize_legacy_preview_xp(raw: bytes, req_id: str) -> tuple[bytes, int]:
     return encode_xp(int(xp["width"]), int(xp["height"]), layers), normalized
 
 
+def _build_legacy_player_preview_xp(session: dict[str, Any], req_id: str) -> bytes:
+    """Project the 126x80 authoring contract into the frozen 126x72 web runtime."""
+    cols = int(session["grid_cols"])
+    rows = int(session["grid_rows"])
+    angles = int(session.get("angles", 0))
+    anims = [int(value) for value in session.get("anims", [])]
+    projs = int(session.get("projs", 0))
+    semantic_frames = sum(anims)
+    if (cols, rows, angles, semantic_frames, projs) != (126, 80, 8, 9, 2):
+        raise ApiError(
+            "player session cannot be projected into the legacy 126x72 preview contract",
+            "legacy_preview_projection_unsupported",
+            "workbench",
+            req_id,
+            422,
+        )
+
+    reference_path = (ROOT / "sprites" / "player-0000.xp").resolve()
+    try:
+        reference = read_xp(reference_path)
+    except Exception as exc:
+        raise ApiError(
+            f"failed reading legacy player preview reference: {exc}",
+            "legacy_preview_reference_unavailable",
+            "workbench",
+            req_id,
+            500,
+        )
+    if (int(reference["width"]), int(reference["height"]), int(reference["layers"])) != (126, 72, 3):
+        raise ApiError(
+            "legacy player preview reference contract drifted from 126x72x3",
+            "legacy_preview_reference_mismatch",
+            "workbench",
+            req_id,
+            500,
+        )
+
+    source = _session_visual_cells(session, req_id)
+    source_grid = [source[y * cols:(y + 1) * cols] for y in range(rows)]
+    target_visual = [_transparent_cell() for _ in range(126 * 72)]
+    target_grid = [target_visual[y * 126:(y + 1) * 126] for y in range(72)]
+    for angle in range(8):
+        for frame in range(18):
+            x0 = frame * 7
+            source_matrix = [row[x0:x0 + 7] for row in source_grid[angle * 10:(angle + 1) * 10]]
+            projected = _resample_frame_matrix(source_matrix, 7, 9)
+            for y, row in enumerate(projected):
+                target_grid[angle * 9 + y][x0:x0 + 7] = row
+
+    layers = [list(layer) for layer in reference["cells"]]
+    layers[2] = [target_grid[y][x] for y in range(72) for x in range(126)]
+    return encode_xp(126, 72, layers)
+
+
 def workbench_mint_legacy_preview_token(
     req_id: str,
     *,
@@ -4533,12 +4587,16 @@ def workbench_mint_legacy_preview_token(
             raw = xp_path.read_bytes()
         except OSError as exc:
             raise ApiError(f"failed reading exported XP: {exc}", "xp_read_failed", "workbench", req_id, 500)
+        source_raw = raw
+        if declared_family == "player" and (int(session["grid_cols"]), int(session["grid_rows"])) == (126, 80):
+            raw = _build_legacy_player_preview_xp(session, req_id)
         source_name = source_name or xp_path.name
     else:
         try:
             raw = base64.b64decode(encoded, validate=True)
         except Exception:
             raise ApiError("xp_b64 is not valid base64", "invalid_xp_base64", "workbench", req_id, 400)
+        source_raw = raw
 
     contract = _legacy_preview_contract_for_xp(raw, req_id, declared_family=declared_family)
     runtime_raw, normalized_cells = _normalize_legacy_preview_xp(raw, req_id)
@@ -4548,8 +4606,8 @@ def workbench_mint_legacy_preview_token(
         **contract,
         "token": token,
         "xp_bytes": runtime_raw,
-        "source_sha256": hashlib.sha256(raw).hexdigest(),
-        "source_size_bytes": len(raw),
+        "source_sha256": hashlib.sha256(source_raw).hexdigest(),
+        "source_size_bytes": len(source_raw),
         "sha256": hashlib.sha256(runtime_raw).hexdigest(),
         "size_bytes": len(runtime_raw),
         "legacy_transparency_normalized_cells": normalized_cells,
@@ -5292,11 +5350,10 @@ def workbench_save_session(session_id: str, payload: dict[str, Any], req_id: str
     derived_cols, derived_rows = _derive_session_grid_geometry(
         angles=next_angles,
         anims=next_anims,
-        # Save-session validates the editable/source sheet geometry. Template
-        # sessions may author a 1-projection source sheet and export to a
-        # 2-projection runtime sheet later, so using next_projs here rejects
-        # valid authored source grids such as player_native_idle_only 126x80.
-        projs=next_source_projs,
+        # The editable XP session is materialized at target projection count.
+        # source_projs describes imported source imagery and must not shrink
+        # the session geometry during save validation.
+        projs=next_projs,
         cell_w=next_cell_w,
         cell_h=next_cell_h,
         req_id=req_id,
