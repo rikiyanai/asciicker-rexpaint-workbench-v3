@@ -16,12 +16,47 @@ import json, sys, shutil, os, time
 from pathlib import Path
 
 V3 = Path(__file__).resolve().parent
-Y9 = Path("/Users/r/Downloads/asciicker-Y9-2")
+
+
+def _resolve_y9_root() -> Path:
+    """Locate the asciicker-Y9-2 checkout.
+
+    Precedence: $ASCIICKER_Y9_ROOT, else the in-repo asciicker-Y9-2 submodule.
+    No absolute machine path is baked in; fails fast when neither is usable.
+    """
+    marker = Path("scripts") / "pipeline" / "xp_core.py"
+    env = os.environ.get("ASCIICKER_Y9_ROOT")
+    if env:
+        root = Path(env).expanduser().resolve()
+        if not (root / marker).is_file():
+            sys.exit(
+                f"ASCIICKER_Y9_ROOT={root} is not an asciicker-Y9-2 checkout "
+                f"(missing {marker})"
+            )
+        return root
+    submodule = V3 / "asciicker-Y9-2"
+    if (submodule / marker).is_file():
+        return submodule
+    sys.exit(
+        "Cannot locate the asciicker-Y9-2 checkout.\n"
+        "Set ASCIICKER_Y9_ROOT to it, e.g.\n"
+        f"  ASCIICKER_Y9_ROOT=/path/to/asciicker-Y9-2 python3 {Path(__file__).name}"
+    )
+
+
+# Y9-2 checkout root is controlled by $ASCIICKER_Y9_ROOT (repo submodule fallback).
+Y9 = _resolve_y9_root()
 sys.path.insert(0, str(Y9 / "scripts" / "pipeline"))
 from xp_core import XPFile
 
 SESSION_ID = "7a7dd262-6c1c-47f4-b2f5-3a267c01c373"
 XP_PATH = Y9 / "assets/sprites/2026-05-28-wallace.xp"
+if not XP_PATH.is_file():
+    # Point $ASCIICKER_Y9_ROOT at the checkout that holds this sprite.
+    sys.exit(
+        f"missing XP source {XP_PATH}\n"
+        "Set ASCIICKER_Y9_ROOT to the asciicker-Y9-2 checkout holding this sprite."
+    )
 DEST = V3 / "data/sessions" / f"{SESSION_ID}.json"
 
 print("=== WALLACE SESSION RECOVERY ===")
