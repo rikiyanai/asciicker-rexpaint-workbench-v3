@@ -16762,7 +16762,7 @@ a parallel owner.
 **Stage.** Logged and specified only. No product behavior, source runtime, test
 result, deployment, or acceptance claim changed in this pass.
 
-## rikiworld.com/xpedit flat-arena stall — blanket no-store on a 24.2 MB payload — 2026-09-09 — DIAGNOSED, NOT FIXED
+## rikiworld.com/xpedit flat-arena stall — blanket no-store on a 24.2 MB payload — 2026-09-09 — SUPERSEDED BY THE 2026-09-09 BROWSER REPRODUCTION BELOW
 
 **Operational frame.** The user reported that `rikiworld.com/xpedit` "keeps stalling"
 and asked for a read-only diagnosis before any MVP publish. The required outcome is
@@ -16827,3 +16827,106 @@ was requested in the same session and is tracked separately.
 **Stage.** Diagnosed from live observation plus serving-repo source and history.
 Not Implemented, not Connected, not Executed as a fix. No source, configuration,
 deployment, or runtime state was modified.
+
+## rikiworld.com/xpedit stall — browser reproduction, and correction of the entry above — 2026-09-09 — REPRODUCED
+
+**Operational frame.** The entry above was written from source, history and header
+probes without a browser reproduction. An adversarial audit challenged three of its
+load-bearing claims. This pass ran the reproduction the earlier entry lacked, and the
+audit was right on every disputed point. The earlier entry is superseded, not amended:
+its serving-owner identity is false, its "incidental" framing is false, and its
+root-cause conclusion is too narrow. This entry replaces it.
+
+**Correction 1 — serving owner. The earlier entry named the wrong repository.**
+It claimed the live site is served from `/Users/r/Downloads/asciicker-pipeline-v2`
+at `4b33ddf`. That is false and was asserted from a local filesystem path, which
+cannot establish which container was deployed. Content hashing settles it. Live
+`https://rikiworld.com/xpedit/workbench.js` is SHA-256
+`93b1b6c0624eecef9a6aad64f19e6ea4d11488d113294d59258dd764400ed5fc`. That is a byte
+match for `asciicker-pipeline-v3` commit `07c778a` (2026-06-03, "promote Upload PNG
+to rich CP437 glyph matcher"). The v2 candidate `4b33ddf:web/workbench.js` hashes to
+`12b9ed0c...` and does not match. **The live site is `asciicker-pipeline-v3`,
+50 commits behind current `main`** — an older build of this repo, not a different
+repo. The owning source is therefore
+`/Users/r/Downloads/asciicker-pipeline-v3/src/pipeline_v2/app.py`: `_no_cache` at
+`:84`, `_serve_runtime_asset` at `:128-133`, and `termpp_web_flat_assets` at
+`:360-361` registering `no_cache=True`. All file:line citations in the superseded
+entry point at the wrong checkout.
+
+**Correction 2 — the cache policy was deliberate, not incidental.** The earlier entry
+claimed `no_cache=True` "entered as an incidental line in a bulk checkpoint." The
+commit *message* of `c110dda` is indeed a generic 47-file checkpoint, which is what
+that claim was based on — but the commit *diff* contains an explicit changelog line:
+"2026-02-26: Added hard cache-fresh guarantees for launch path: runtime asset routes
+now return `no-store` for all `/termpp-web/*` and `/termpp-web-flat/*` files;
+`openWebbuild()` now defaults to fresh `_wb` cache-bust and resets iframe via
+`about:blank` before load." This was a designed always-fresh policy. That matters
+causally, because the same decision introduced *both* halves of the defect: the
+uncacheable payload and the cache-busting reload path that re-requests it.
+
+**Correction 3 — no-store is an amplifier, not the root cause.** The earlier entry
+promoted a confirmed caching defect to sole root cause. The reproduction falsifies
+that: the arena reached `Webbuild ready` with `Module.calledRun === true` and a live
+800x500 canvas, and *still* did not run. Caching cannot explain a booted runtime that
+sits idle.
+
+**Reproduction — method.** Chrome, live `https://rikiworld.com/xpedit`, full network
+and console capture, session created through the documented Getting Started path
+(Apply Template -> Test This Skin). Viewport 500x1038 CSS.
+
+**Reproduction — what actually happens.**
+1. The editor shell is healthy. `loadEventEnd - navigationStart = 826 ms`, 28 requests.
+   The arena `iframe#webbuildFrame` has **no `src` at page load** — the 25.4 MB payload
+   is not fetched on open. The superseded entry's implication that shell load is
+   affected is wrong.
+2. `Test This Skin` sets the iframe `src` and the arena boots: WASM instantiates,
+   "Loaded 13 fonts", "ALL PASSED", `calledRun` true, canvas visible, dock reports
+   `Webbuild ready`.
+3. **The game then parks on the `PLAY` name-entry menu and never starts**, despite
+   `autonewgame=1` being present in the iframe URL. The only visible control is a
+   `PLAY` button awaiting a human click. The skin under test is never applied. This is
+   the user-visible endless wait, and it is a functional defect, not a performance one.
+4. **Concurrently, two iframe loads race.** Console shows the bootstrap sequence
+   restarting under two different cache-bust tokens, `_wb=1788946076208` and
+   `_wb=1788946079407`, interleaving at 5:27:56, 5:28:00, and then three times inside
+   5:28:03. Each restart re-requests the full payload.
+5. **Both in-browser `index.data` requests returned HTTP 503.** Under the reload race
+   the single-instance origin fails outright, while three sequential `curl` GETs from
+   the same machine all returned 200 at 25,406,532 bytes in 0.75-0.82 s. The payload
+   is fine when requested serially; it fails under the concurrency the reload race
+   itself creates.
+
+**Live header evidence.** `HEAD /xpedit/termpp-web-flat/index.data` returns
+`content-length: 25406532`, `cache-control: no-store, no-cache, max-age=0,
+must-revalidate`, `cf-cache-status: DYNAMIC`, and **no `content-encoding`** — the
+asset is served uncompressed as well as uncacheable. Measured locally, the same file
+gzips to 5.87 MB, so roughly 19.5 MB per request is avoidable transfer that neither
+the edge nor the browser is permitted to retain.
+
+**Corrected causal model.** The stall is two independent defects that share one
+origin decision. The primary defect is that the arena boots but does not auto-start:
+`autonewgame=1` is not honored, so the runtime waits on `PLAY` forever. The secondary
+defect is the always-fresh policy from `c110dda`, whose `_wb` cache-busting reload
+path races itself and whose `no-store` header forces every one of those races to
+re-pull 25.4 MB uncompressed from a `--max-instances=1`, `--workers 1`,
+`--threads 4` origin, which then returns 503. The first defect makes the preview
+useless; the second makes it slow, expensive and intermittently 503, and makes the
+failure look like a network hang rather than a stuck menu.
+
+**Unrelated defects observed in the same run.** `GET https://rikiworld.com/persistence.mjs`
+returns **503** and `GET https://rikiworld.com/manifest.json` returns **404** twice —
+both requested at the site root without the `/xpedit` base path, then re-requested
+correctly at `/xpedit/persistence.mjs` (200). Separately, the default template
+"Player Skin (Idle Only)" produces a session the export gate rejects:
+`{"code":"session_geometry_invalid","error":"session geometry mismatch: grid=126x80,
+expected 252x80"}`. The first documented path in the on-page Getting Started guide
+therefore yields an unexportable session.
+
+**Falsifier.** Forcing the arena past the menu — an honored `autonewgame`, or a
+synthetic `PLAY` activation — while leaving `no-store` in place would show whether
+the skin then applies. If it does, the menu deadlock is confirmed primary and the
+cache policy is confirmed secondary. If it does not, a third defect exists downstream
+in skin application.
+
+**Stage.** Executed and reproduced against the live deployment. Not fixed. No source,
+configuration, deployment, or runtime state was modified in this pass.
