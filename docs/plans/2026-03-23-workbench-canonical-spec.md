@@ -768,6 +768,12 @@ template or pipeline remnants:
 9. **History**
    - undo
    - redo
+10. **Animation Authoring**
+   - ordered frame sequence
+   - explicit holds or timing
+   - loop behavior
+   - frame anchor and padding policy
+   - document-derived playback preview
 
 Everything in this tree belongs to Section 1. Source slicing, template/bundle
 state, engine-family routing, and runtime injection belong to Section 2.
@@ -3325,6 +3331,71 @@ Legacy-step normalization for older references:
 | UQ-012 | ALWAYS | Canon hygiene and anti-overclaiming | Every non-trivial source/doc/proof change | Keep `PLAYWRIGHT_FAILURE_LOG.md`, this canon spec, and any directly-adjacent proof-summary text aligned. Separate code state, proof state, and doc state explicitly. Reopen rows when live code falsifies an earlier closeout. | Authority docs and live source agree, and no stale completion claim survives a contradiction | A lower-priority note, stale sequence summary, or old "COMPLETE" wording contradicts the current failure log or source | Canon authority / process |
 | UQ-013 | CURRENT | Mobile Open Workbench usability and browser persistence follow-through | UQ-001 complete; mobile XP upload helper has proven file intake but first-screen workbench UX is product-blocking; prune proposal is downstream of this row | Implement the Section 1.9.2/1.9.3 mobile contract as a clean task-rooted mode: `Open XP`, `Continue Draft`, `New From Template`, `Export/Share`, responsive landscape editor shell, portrait open/import/continue sheet with rotate hint, IDs off by default, and a clearly secondary `Advanced Workbench` escape hatch to the existing dense dashboard. Keep dense AVP/native/proof/debug controls out of the mobile first screen; keep source as a named drawer, not generic Advanced. Decide and document the draft-discovery UX before implementation. | A real iPad or headed WebKit iPad pass can open/import an XP, continue an IndexedDB draft through the chosen draft entry, and reach the editor without navigating the current multi-panel workbench menu; landscape editor shell is usable; portrait can open/import/continue and then steer to landscape; IDs are off by default; export/share remains reachable; Advanced Workbench remains reachable as fallback | Any fix treats successful upload as usability closure, makes portrait/landscape orientation a hard open gate, reopens Section 1 ownership, hides the required Advanced Workbench escape hatch, buries source or U2/U4 required surfaces in generic Advanced, or implements prune before mobile usability design is approved | Section 1.9.2 / Section 1.9.3 / FL-MOB-01 |
 | UQ-014 | PARKED | Printable Y9-2 authoring grid paper side feature | UQ-006 source-manifest/template geometry authority stable, or user explicitly reprioritizes a design-only prototype | Build the correct version of the printable grid-paper method from Section 2.6.1 / `FL-PRINT-01`: generate printable HTML/PDF from selected template/XP geometry, with underdrawing, cell grid, semantic boundaries, labels, fiducials, calibration strip, and explicit non-runtime status | Generated paper matches selected template geometry and records provenance; no hardcoded dimensions from the rejected seed artifact survive as authority | Any implementation copies the incorrect `sprite-sheet-full.html` layout as truth, hardcodes stale dimensions, or claims scan/import/runtime integration without a consuming path | S2-PRINT-01 / FL-PRINT-01 |
+| UQ-015 | PARKED / WAYFINDER | Text-art craft and animation authoring contract | UQ-006 source-manifest ownership remains open; UQ-013 is the current mobile product lane. Start only when the user explicitly reprioritizes this capability or the earlier rows no longer block it. | Resolve the four `UQ-015` frontiers below before implementing controls. Preserve the whole-sheet XP document as the only mutable editor owner. Treat glyph sets, material guidance, reference boards, and onion-skin views as non-destructive authoring aids. Do not make a browser preview, converter, or runtime adapter a second document owner. | A reviewed contract names the animation-data owner and persistence format, supported font/glyph range and fallback, reference-image provenance and retention policy, the first asset scope, and one temporal acceptance path. Only then may an implementation begin. | Any work adds an unversioned timing field, makes a font swap silently change stored visual meaning, treats a reference image as an automatic conversion authority, adds automatic art scoring/mutation, or begins implementation before the unresolved owner decisions are made. | Section 1 / Wayfinder map 2026-08-31 / `docs/research/ascii/2026-08-31-stone-story-ascii-tutorial-intake.txt` |
+
+#### UQ-015 Wayfinder map — text-art craft and animation authoring
+
+**Destination.** The workbench can help an author make coherent text-art sprite
+assets and preview their motion while the whole-sheet XP document remains the
+single mutable editor owner. Any runtime or Skin Dock surface consumes the
+authored document and explicit metadata; it does not reconstruct the asset.
+
+**Evidence and current mismatch.** The current root editor provides a fixed
+16-by-16 CP437 picker and a loaded CP437 font. It persists row categories and
+frame groups, and the existing `Animation + Metadata` drawer can categorize,
+group, align, and nudge frames. It has no contract for frame order, duration or
+holds, loop mode, playback, onion skin, glyph-set grammar, font provenance, or
+reference-board semantics. The source panel currently holds a source image for
+conversion/layout work, not a separately governed composition reference.
+
+**Source note.** The tutorial intake at
+`docs/research/ascii/2026-08-31-stone-story-ascii-tutorial-intake.txt` is a
+user-provided study. Its Part 1 material is corroborated by the user-local
+saved official companion page `ASCII-art Tutorial.html`, which identifies
+`https://stonestoryrpg.com/ascii_tutorial.html` and has a recorded SHA-256 in
+the intake. It is a design reference, not a proof that the current runtime can
+consume new animation data.
+
+**Decisions fixed now.**
+
+1. Section 1 owns every mutable animation-authoring field that belongs to an
+   XP document. A preview is observational.
+2. A glyph set is a non-destructive selection and annotation aid. It cannot
+   change the numeric glyph stored in a cell by implication.
+3. A material label or line-art study is author guidance. It cannot score,
+   rewrite, or silently normalize authored cells.
+4. A reference board is visually read-only with respect to the XP document.
+   It must remain distinguishable from a conversion source.
+5. Onion skin, if introduced, is a view over explicit neighboring frames. It
+   may not become a hidden layer or a save-time pixel mutation.
+
+**Unspecified frontiers.**
+
+1. **UQ-015.A — animation-data owner (research).** Decide whether ordered
+   frames, integer holds, loop mode, anchors, and padding live in a versioned
+   XP sidecar, a bundle manifest, or another explicitly versioned artifact.
+   Name the reader, migration behavior, and export/runtime consumer. The
+   current `row_categories` and `frame_groups` fields are insufficient.
+2. **UQ-015.B — glyph and font contract (research).** Decide the supported
+   glyph range, font identity and metrics, fallback for absent glyphs, and
+   whether custom fonts are per document, per workspace, or runtime bundle
+   inputs. Retain the existing numeric CP437 behavior until the contract says
+   otherwise.
+3. **UQ-015.C — reference and art-review boundary (research).** Decide the
+   reference-board storage, provenance, retention, deletion, privacy, and
+   export rules. Decide the minimal glyph-set/material-study/onion-skin UX that
+   works on both desktop and the UQ-013 mobile shell without duplicating source
+   image or document ownership.
+4. **UQ-015.D — temporal proof (task after A-C).** Define one user-reachable
+   temporal test: select an authored action, play it continuously from the
+   persisted document, capture time-separated frames plus matching metadata,
+   and confirm the claimed runtime consumer uses the same asset identity.
+
+**Out of scope.** This lane does not import Stone Story assets, video, or
+runtime code. It does not change game rendering, re-open the current
+source-manifest or mobile ownership lanes, implement an automatic ASCII-art
+grader, or claim runtime animation support before the chosen artifact has a
+consumer and temporal proof.
 
 #### UQ-013 Closure Sequence
 
@@ -4738,6 +4809,7 @@ not a task plan - it is a gate list. Migration is ready when all blocking gates 
 | M2 E2E proof run (PNG→WS→export, committed headed run) | §Milestone 2 | PARTIAL |
 | UQ-013 mobile Open Workbench usability and persistence | §Unified Queue `UQ-013` / `FL-MOB-01` | CURRENT - mobile XP intake works, but first-screen workbench UX is product-blocking; clean mobile root, IDs-off default, export/share, and Advanced Workbench escape hatch are now the active robot task |
 | UQ-014 printable Y9-2 authoring grid paper side feature | §2.6.1 / §Unified Queue `UQ-014` / `FL-PRINT-01` | PARKED - idea captured; prior `sprite-sheet-full.html` layout is non-authoritative and must be regenerated from template/source geometry before implementation |
+| UQ-015 text-art craft and animation authoring contract | §Unified Queue `UQ-015` | PARKED / WAYFINDER - user-provided text-art tutorial intake identifies a real authoring gap, but data ownership, font/glyph semantics, reference retention, first asset scope, and temporal runtime proof remain unspecified. It does not block the current UQ-006 or UQ-013 lanes. |
 | Whole-sheet browse-model split implementation | §1.8 / §2 boundary | DECISION FIXED - browse opens XP/root-editor documents first, layer 0 is editable in principle, and template metadata compatibility is a later wrapper concern; implementation remains intentionally sequenced after grid contrast, expanded grid presets, grid-scoped replace semantics, and their proof updates |
 | Historical FL-3861 `render_plans.json` compiler output | §2.15 | SUPERSEDED — non-blocking lineage only; latest Y9-2 origin uses ActorVisualProfile generated-table artifacts rather than the May 12 `render_plans.json` target |
 | Runtime-artifact preview surface (historical Step 11 of content authoring flow) — FL-3919 lineage | §2.10 | OPEN — no surface exists to inspect the exact compiled layer stack/runtime artifact before activation. The active target must follow latest Y9-2 ActorVisualProfile generated-table truth, not a hardcoded RenderPlanTable surface. |

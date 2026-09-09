@@ -16705,3 +16705,59 @@ in headed WebKit emulation, NOT Accepted**. Physical iPad Safari acceptance rema
 OPEN, unfixed defects** — no runtime fix was attempted or claimed in this round. Nothing
 was committed, deployed or promoted to production, and no product or source file was
 edited by this logging pass.
+
+## Wayfinder map — Stone Story text-art tutorial intake and editor-spec frontier — 2026-08-31
+
+**Operational frame.** The requested outcome is an XPEdit specification that
+can eventually support coherent text-art authoring and intentional animation,
+without turning a preview, conversion helper, or runtime adapter into a second
+document owner. The current mismatch is that the whole-sheet editor has a
+fixed CP437 picker and lightweight frame metadata, but no owner contract for
+timing, playback, font provenance, glyph-language guidance, or composition
+reference material. The authoritative owners are this failure log and
+`docs/plans/2026-03-23-workbench-canonical-spec.md`; the whole-sheet document
+remains the prospective mutable owner.
+
+**Input and provenance.** The user supplied Part 1 and Part 2 video
+descriptions and transcripts in-session. They are preserved as a bounded TXT
+study at `docs/research/ascii/2026-08-31-stone-story-ascii-tutorial-intake.txt`.
+After the initial log, the user identified the local saved official companion
+page `ASCII-art Tutorial.html`. Its saved-from URL is
+`https://stonestoryrpg.com/ascii_tutorial.html`; its observed Open Graph title
+is `Stone Story RPG - ASCII-art Tutorial`; and its SHA-256 is
+`055c147c8a93c3d1e898c8b901328927a797b5c83b6f9fdab6df64fb41c33c23`.
+The page corroborates the Part 1 visual examples and named sections. It does
+not establish a video ID, channel URL, publication date, caption language, or
+the Part 2 source identity. The TXT is a design reference only; it does not
+import external media or assets.
+
+**Evidence checked.** `web/whole-sheet-init.js` loads a CP437 font and renders
+a 16-by-16 glyph picker for codes 0–255. `web/workbench.js` persists
+`rowCategories` and `frameGroups`; `web/workbench.html` exposes an
+`Animation + Metadata` drawer for categories, frame groups, and jitter
+alignment. These facts do not establish ordered playback, holds/duration, loop
+mode, onion skin, font identity, material/glyph-set semantics, or a reference
+board. The existing source image is a conversion/layout input, not a separately
+governed composition reference.
+
+**Decision recorded.** `UQ-015` is added to the canonical queue as
+`PARKED / WAYFINDER`. It is non-blocking for the current UQ-006
+source-manifest and UQ-013 mobile lanes. The new map fixes five constraints:
+
+1. The Section 1 whole-sheet editor owns mutable animation fields.
+2. Glyph sets and material labels are non-destructive authoring aids.
+3. Reference boards are visually read-only with respect to XP cells.
+4. Onion skin is a derived view, never an implicit saved layer.
+5. Runtime claims require a persisted artifact, named consumer, and temporal
+   proof from the same asset identity.
+
+**Still unspecified.** The Wayfinder frontiers are `UQ-015.A` animation-data
+ownership, `UQ-015.B` glyph/font contract, `UQ-015.C` reference/art-review
+boundary, and `UQ-015.D` temporal proof. Each is defined in the canonical spec
+before implementation may start. The falsifier for this map is current source
+or a later reviewed contract proving an existing owner for any stated gap; that
+evidence must narrow or remove the corresponding frontier rather than creating
+a parallel owner.
+
+**Stage.** Logged and specified only. No product behavior, source runtime, test
+result, deployment, or acceptance claim changed in this pass.
